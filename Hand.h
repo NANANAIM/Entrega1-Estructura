@@ -5,7 +5,10 @@
 using namespace std;
 
 // Mano basada en lista simple: almacena fichas canónicas (id a<=b)
-struct HandNode { int id; HandNode* next; };
+struct HandNode {
+    int id; 
+    HandNode* next;
+};
 
 inline void hand_init(HandNode** h) { *h = nullptr; }
 

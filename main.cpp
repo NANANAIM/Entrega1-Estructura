@@ -66,18 +66,33 @@ static int round_play(int players, int &nextStarter, int roundScores[4]) {
     int idx = 0; for (int p=0; p<players; ++p) for (int k=0;k<7;++k) hand_insert_front(&hands[p], ids[idx++]);
     for (; idx<cnt; ++idx) boneyard_push_front(&boneyard, ids[idx]);
 
-    // determinar starter: doble 6 o mayor suma si nadie lo tiene
-    int starter = 0; int bestDouble = -1; int bestSum = -1;
-    for (int p=0;p<players;++p) {
-        int sum = 0; HandNode* h = hands[p];
-        while (h) { int a,b; decodeCanonical(h->id,a,b); if (a==b && a>bestDouble) { bestDouble=a; starter=p; } sum+=a+b; h=h->next; }
-        if (bestDouble==-1 && sum>bestSum) { bestSum=sum; starter=p; }
+    // determinar starter y ficha inicial: si alguien tiene [6|6], empieza con esa; si no, ficha más alta (mayor a+b)
+    int starter = 0; bool hasDoubleSix = false; int startTileId = -1; int startTileSum = -1;
+    for (int p=0; p<players; ++p) {
+        for (HandNode* h = hands[p]; h; h = h->next) {
+            int a,b; decodeCanonical(h->id, a, b);
+            if (a==6 && b==6) { starter = p; hasDoubleSix = true; startTileId = h->id; break; }
+            int sum = a + b;
+            if (!hasDoubleSix && sum > startTileSum) { startTileSum = sum; startTileId = h->id; starter = p; }
+        }
+        if (hasDoubleSix) break;
     }
 
-    cout << "Inicia jugador " << (starter+1) << "\n";
+    // Mensaje requerido y jugada automática obligatoria
+    if (hasDoubleSix) {
+        cout << "jugador " << (starter+1) << " tiene la ficha [6|6].\n";
+    } else {
+        cout << "jugador " << (starter+1) << " tiene la ficha más alta "; printTileCanonical(startTileId); cout << ".\n";
+    }
+
+    // Colocar automáticamente la ficha inicial
+    int sa, sb; decodeCanonical(startTileId, sa, sb);
+    board_place_left(&board, sa, sb);
+    hand_remove_first(&hands[starter], startTileId);
+    cout << "J" << (starter+1) << " juega "; printTileCanonical(startTileId); cout << " como primera jugada.\n";
     board_print(board);
 
-    int current = starter; int passesInRow = 0;
+    int current = (starter + 1) % players; int passesInRow = 0;
     int winner = -1;
 
     while (true) {
