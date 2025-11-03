@@ -1,3 +1,7 @@
+// Include guard
+#ifndef LISTA_SIMPLE_H
+#define LISTA_SIMPLE_H
+
 #include <iostream>
 using namespace std;
 
@@ -12,6 +16,8 @@ void insertar(Node **p, int value) {
     *p = nuevoNodo;
 }
 
+// End of include guard
+#endif // LISTA_SIMPLE_H
 void eliminar(Node **p, int value) {
     Node *actual = *p;
     Node *anterior = nullptr;

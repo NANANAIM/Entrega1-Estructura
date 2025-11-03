@@ -8,19 +8,19 @@
 #include "Board.h"
 using namespace std;
 
-static void fill_full_set(int ids[], int &count) {
+void fill_full_set(int ids[], int &count) {
     count = 0;
     for (int a=0;a<=6;++a) for (int b=a;b<=6;++b) ids[count++] = encodeCanonical(a,b);
 }
 
-static void shuffle_ids(int ids[], int n, RNG &rng) {
+void shuffle_ids(int ids[], int n, RNG &rng) {
     for (int i=n-1;i>0;--i) {
         int j = (int) (rng_range(rng, (unsigned long)(i+1)));
         int t = ids[i]; ids[i] = ids[j]; ids[j] = t;
     }
 }
 
-static void print_hand_with_indices(HandNode* h) {
+void print_hand_with_indices(HandNode* h) {
     int idx=0; cout << "Mano: ";
     cout << "{";
     while (h) {
@@ -30,11 +30,11 @@ static void print_hand_with_indices(HandNode* h) {
     cout << "}" << "\n";
 }
 
-static HandNode* hand_get_node_at(HandNode* h, int index) {
+HandNode* hand_get_node_at(HandNode* h, int index) {
     int i=0; while (h && i<index) { h=h->next; ++i; } return h;
 }
 
-static bool can_play_any(HandNode* h, int leftVal, int rightVal) {
+bool can_play_any(HandNode* h, int leftVal, int rightVal) {
     if (leftVal == -1) return h != nullptr; // mesa vacia: cualquier ficha
     while (h) {
         int a,b; decodeCanonical(h->id, a, b);
@@ -44,14 +44,14 @@ static bool can_play_any(HandNode* h, int leftVal, int rightVal) {
     return false;
 }
 
-static bool try_place_on_side(BoardNode** board, int id, char side) {
+bool try_place_on_side(BoardNode** board, int id, char side) {
     int a,b; decodeCanonical(id, a, b);
     if (side=='L' || side=='l') return board_place_left(board, a,b) || board_place_left(board, b,a);
     if (side=='R' || side=='r') return board_place_right(board, a,b) || board_place_right(board, b,a);
     return false;
 }
 
-static int round_play(int players, int &nextStarter, int roundScores[4]) {
+int round_play(int players, int &nextStarter, int roundScores[4], RNG &rng) {
     // retorna: indice del jugador que salio (>=0) o -1 si tranca
     // inicializar estructuras
     HandNode* hands[4]; for (int i=0;i<4;++i) hand_init(&hands[i]);
@@ -60,7 +60,7 @@ static int round_play(int players, int &nextStarter, int roundScores[4]) {
 
     // set y reparto
     int ids[28]; int cnt; fill_full_set(ids, cnt);
-    RNG rng; rng_seed(rng, 987654321u); // semilla fija; se puede variar por ronda
+    // Usar RNG compartido de la partida (no resembrar por ronda)
     shuffle_ids(ids, cnt, rng);
 
     int idx = 0; for (int p=0; p<players; ++p) for (int k=0;k<7;++k) hand_insert_front(&hands[p], ids[idx++]);
@@ -189,10 +189,16 @@ int main() {
     int roundsPlayed = 0;
     int nextStarter = 0; // se actualiza al final de cada ronda por round_play
 
+    // Semilla para el RNG: se pide al usuario para variar entre ejecuciones sin incluir librerías extra
+    unsigned long seed = 1u;
+    cout << "Ingresa una semilla (entero, ej. 12345): ";
+    if (!(cin >> seed)) { cin.clear(); cin.ignore(10000,'\n'); seed = 1u; }
+    RNG rng; rng_seed(rng, seed);
+
     while (roundsPlayed < 3) {
         cout << "\n--- Ronda " << (roundsPlayed+1) << " ---\n";
-        int roundScores[4] = {0,0,0,0};
-        int winner = round_play(players, nextStarter, roundScores);
+    int roundScores[4] = {0,0,0,0};
+    int winner = round_play(players, nextStarter, roundScores, rng);
         for (int p=0;p<players;++p) totalScores[p] += roundScores[p];
 
         cout << "Acumulado tras ronda " << (roundsPlayed+1) << ":\n";
