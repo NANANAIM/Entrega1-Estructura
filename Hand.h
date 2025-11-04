@@ -1,55 +1,91 @@
-// Header sin include guard (por solicitud)
-
 #include <iostream>
 using namespace std;
 
 // Mano basada en lista simple: almacena fichas canónicas (id a<=b)
-struct HandNode { int id; HandNode* next; };
+struct NodoMano { 
+    int id; 
+    NodoMano* next; 
+};
 
-// Declaraciones mínimas de funciones usadas y definidas en DominoCommon.h
-int tilePointsFromId(int id);
-void printTileCanonical(int id);
+// Declaraciones mínimas de funciones usadas (definidas en DominoCommon.h)
+int puntosDeFicha(int idFicha);
+
+void imprimirFichaCanonica(int idFicha);
 
 // Implementaciones en el header (sin inline/static)
-void hand_init(HandNode** h) { *h = nullptr; }
-
-void hand_insert_front(HandNode** h, int id) {
-        HandNode* n = new HandNode; n->id = id; n->next = *h; *h = n;
+void mano_iniciar(NodoMano** h){ 
+    *h = nullptr; 
 }
 
-bool hand_remove_first(HandNode** h, int id) {
-        HandNode* cur = *h; HandNode* prev = nullptr;
+void mano_insertar_inicio(NodoMano** h, int id){
+    NodoMano* n = new NodoMano;
+    n->id = id; 
+    n->next = *h; 
+    *h = n;
+}
+
+bool mano_eliminar_primero(NodoMano** h, int id) {
+        NodoMano* cur = *h; 
+        NodoMano* prev = nullptr;
         while (cur) {
                 if (cur->id == id) {
-                        if (prev) prev->next = cur->next; else *h = cur->next;
-                        delete cur; return true;
+                        if (prev) prev->next = cur->next; 
+                        else *h = cur->next;
+                        delete cur; 
+                        return true;
                 }
-                prev = cur; cur = cur->next;
+                prev = cur; 
+                cur = cur->next;
         }
         return false;
 }
 
-bool hand_contains(HandNode* h, int id) {
-        while (h) { if (h->id == id) return true; h = h->next; } return false;
+bool mano_contiene(NodoMano* h, int id) {
+        while (h) { 
+            if (h->id == id) return true; 
+            h = h->next; 
+        } 
+        return false;
 }
 
-int hand_count(HandNode* h) { int c=0; while (h){++c; h=h->next;} return c; }
+int mano_contar(NodoMano* h) { 
+    int c=0; 
+    while (h){
+        ++c; 
+        h=h->next;
+    } 
+    return c; 
+}
 
-int hand_points(HandNode* h) { int s=0; while (h){ s += tilePointsFromId(h->id); h=h->next;} return s; }
+int mano_puntos(NodoMano* h) { 
+    int s=0; 
+    while (h){ 
+        s += puntosDeFicha(h->id); 
+        h=h->next;
+    } 
+    return s; 
+}
 
-void hand_print(HandNode* h) {
+void mano_imprimir(NodoMano* h) {
         cout << "{";
         bool first=true;
         while (h) {
                 if (!first) cout << ", ";
-                printTileCanonical(h->id);
-                first=false; h=h->next;
+                imprimirFichaCanonica(h->id);
+                first=false; 
+                h=h->next;
         }
         cout << "}";
 }
 
-void hand_free(HandNode** h) {
-        HandNode* cur = *h; while (cur){ HandNode* nx = cur->next; delete cur; cur = nx; } *h=nullptr;
+void mano_liberar(NodoMano** h) {
+    NodoMano* cur = *h; 
+    while (cur){ 
+        NodoMano* nx = cur->next; 
+        delete cur; 
+        cur = nx; 
+    } 
+    *h=nullptr;
 }
 
-// Fin de Hand.h (sin guardas)
+

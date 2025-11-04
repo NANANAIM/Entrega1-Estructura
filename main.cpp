@@ -8,114 +8,128 @@
 #include "Board.h"
 using namespace std;
 
-void fill_full_set(int ids[], int &count) {
-    count = 0;
-    for (int a=0;a<=6;++a) for (int b=a;b<=6;++b) ids[count++] = encodeCanonical(a,b);
+void llenar_conjunto_completo(int ids[], int &cantidad) {
+    cantidad = 0;
+    for (int a=0;a<=6;++a) for (int b=a;b<=6;++b) ids[cantidad++] = codificarCanonica(a,b);
 }
 
-void shuffle_ids(int ids[], int n, RNG &rng) {
-    for (int i=n-1;i>0;--i) {
-        int j = (int) (rng_range(rng, (unsigned long)(i+1)));
-        int t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+void reordenar_ids(int ids[], int n, int numeroRonda, int jugadores, int mezcla) {
+    if (n <= 1) return;
+    if (n > 28) n = 28; // por seguridad
+    int temp[28];
+    int k = (numeroRonda * 7 + jugadores * 3 + mezcla) % n; // desplazamiento por ronda, jugadores y mezcla del usuario
+    for (int i = 0; i < n; ++i) temp[i] = ids[(i + k) % n];
+    for (int i = 0; i < n; ++i) ids[i] = temp[i];
+    // pequeña mezcla adicional determinística
+    for (int i = 1; i + 1 < n; i += 3) {
+        int j = n - 1 - i;
+        if (j >= 0 && j < n) { int t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
     }
 }
 
-void print_hand_with_indices(HandNode* h) {
+void imprimir_mano_con_indices(NodoMano* h) {
     int idx=0; cout << "Mano: ";
     cout << "{";
     while (h) {
-        cout << idx << ":"; printTileCanonical(h->id); if (h->next) cout << ", ";
+        cout << idx << ":"; imprimirFichaCanonica(h->id); if (h->next) cout << ", ";
         ++idx; h=h->next;
     }
     cout << "}" << "\n";
 }
 
-HandNode* hand_get_node_at(HandNode* h, int index) {
-    int i=0; while (h && i<index) { h=h->next; ++i; } return h;
+NodoMano* mano_obtener_nodo_en(NodoMano* h, int indice) {
+    int i=0; while (h && i<indice) { h=h->next; ++i; } return h;
 }
 
-bool can_play_any(HandNode* h, int leftVal, int rightVal) {
-    if (leftVal == -1) return h != nullptr; // mesa vacia: cualquier ficha
+bool puede_jugar_alguna(NodoMano* h, int extremoIzq, int extremoDer) {
+    if (extremoIzq == -1) return h != nullptr; // mesa vacia: cualquier ficha
     while (h) {
-        int a,b; decodeCanonical(h->id, a, b);
-        if (a==leftVal || b==leftVal || a==rightVal || b==rightVal) return true;
+        int a,b; decodificarCanonica(h->id, a, b);
+        if (a==extremoIzq || b==extremoIzq || a==extremoDer || b==extremoDer) return true;
         h = h->next;
     }
     return false;
 }
 
-bool try_place_on_side(BoardNode** board, int id, char side) {
-    int a,b; decodeCanonical(id, a, b);
-    if (side=='L' || side=='l') return board_place_left(board, a,b) || board_place_left(board, b,a);
-    if (side=='R' || side=='r') return board_place_right(board, a,b) || board_place_right(board, b,a);
+bool intentar_colocar_en_lado(NodoMesa** mesa, int id, char lado) {
+    int a,b; decodificarCanonica(id, a, b);
+    if (lado=='L' || lado=='l') return mesa_colocar_izquierda(mesa, a,b) || mesa_colocar_izquierda(mesa, b,a);
+    if (lado=='R' || lado=='r') return mesa_colocar_derecha(mesa, a,b) || mesa_colocar_derecha(mesa, b,a);
     return false;
 }
 
-int round_play(int players, int &nextStarter, int roundScores[4], RNG &rng) {
+int jugar_ronda(int jugadores, int &siguienteInicial, int puntajesRonda[4], int numeroRonda, int mezcla) {
     // retorna: indice del jugador que salio (>=0) o -1 si tranca
     // inicializar estructuras
-    HandNode* hands[4]; for (int i=0;i<4;++i) hand_init(&hands[i]);
-    BNode* boneyard = nullptr; boneyard_init(&boneyard);
-    BoardNode* board = nullptr; board_init(&board);
+    NodoMano* manos[4]; 
+    for (int i=0;i<4;++i) mano_iniciar(&manos[i]);
+
+    NodoPozo* pozo = nullptr; 
+    pozo_iniciar(&pozo);
+
+    NodoMesa* mesa = nullptr; 
+    mesa_iniciar(&mesa);
 
     // set y reparto
-    int ids[28]; int cnt; fill_full_set(ids, cnt);
-    // Usar RNG compartido de la partida (no resembrar por ronda)
-    shuffle_ids(ids, cnt, rng);
+    int ids[28]; 
+    int cnt;
+    llenar_conjunto_completo(ids, cnt);
+    // Reordenar de forma determinística sin semillas
+    reordenar_ids(ids, cnt, numeroRonda, jugadores, mezcla);
 
-    int idx = 0; for (int p=0; p<players; ++p) for (int k=0;k<7;++k) hand_insert_front(&hands[p], ids[idx++]);
-    for (; idx<cnt; ++idx) boneyard_push_front(&boneyard, ids[idx]);
+    int idx = 0; for (int p=0; p<jugadores; ++p) for (int k=0;k<7;++k) mano_insertar_inicio(&manos[p], ids[idx++]);
+    for (; idx<cnt; ++idx) pozo_insertar_inicio(&pozo, ids[idx]);
 
     // determinar starter y ficha inicial: si alguien tiene [6|6], empieza con esa; si no, ficha más alta (mayor a+b)
-    int starter = 0; bool hasDoubleSix = false; int startTileId = -1; int startTileSum = -1;
-    for (int p=0; p<players; ++p) {
-        for (HandNode* h = hands[p]; h; h = h->next) {
-            int a,b; decodeCanonical(h->id, a, b);
-            if (a==6 && b==6) { starter = p; hasDoubleSix = true; startTileId = h->id; break; }
-            int sum = a + b;
-            if (!hasDoubleSix && sum > startTileSum) { startTileSum = sum; startTileId = h->id; starter = p; }
+    int inicial = 0; bool tieneDobleSeis = false; int fichaInicialId = -1; int sumaInicial = -1;
+    for (int p=0; p<jugadores; ++p) {
+        for (NodoMano* h = manos[p]; h; h = h->next) {
+            int a,b; decodificarCanonica(h->id, a, b);
+            if (a==6 && b==6) { inicial = p; tieneDobleSeis = true; fichaInicialId = h->id; break; }
+            int suma = a + b;
+            if (!tieneDobleSeis && suma > sumaInicial) { sumaInicial = suma; fichaInicialId = h->id; inicial = p; }
         }
-        if (hasDoubleSix) break;
+        if (tieneDobleSeis) break;
     }
 
     // Mensaje requerido y jugada automática obligatoria
-    if (hasDoubleSix) {
-        cout << "jugador " << (starter+1) << " tiene la ficha [6|6].\n";
+    if (tieneDobleSeis) {
+        cout << "jugador " << (inicial+1) << " tiene la ficha [6|6].\n";
     } else {
-        cout << "jugador " << (starter+1) << " tiene la ficha más alta "; printTileCanonical(startTileId); cout << ".\n";
+        cout << "jugador " << (inicial+1) << " tiene la ficha mas alta "; imprimirFichaCanonica(fichaInicialId); cout << ".\n";
     }
 
     // Colocar automáticamente la ficha inicial
-    int sa, sb; decodeCanonical(startTileId, sa, sb);
-    board_place_left(&board, sa, sb);
-    hand_remove_first(&hands[starter], startTileId);
-    cout << "J" << (starter+1) << " juega "; printTileCanonical(startTileId); cout << " como primera jugada.\n";
-    board_print(board);
+    int sa, sb; decodificarCanonica(fichaInicialId, sa, sb);
+    mesa_colocar_izquierda(&mesa, sa, sb);
+    mano_eliminar_primero(&manos[inicial], fichaInicialId);
+    cout << "J" << (inicial+1) << " juega "; imprimirFichaCanonica(fichaInicialId); cout << " como primera jugada.\n";
+    mesa_imprimir(mesa);
 
-    int current = (starter + 1) % players; int passesInRow = 0;
-    int winner = -1;
+    int actual = (inicial + 1) % jugadores; int pasesSeguidos = 0;
+    int ganador = -1;
 
     while (true) {
         cout << "------------------------------\n";
-        cout << "Turno de J" << (current+1) << "\n";
-        int L, R; board_get_ends(board, L, R);
+        cout << "Turno de J" << (actual+1) << "\n";
+        int L, R; mesa_obtener_extremos(mesa, L, R);
         cout << "Extremos actuales: "; if (L==-1) cout << "[mesa vacia]"; else cout << "L=" << L << " R=" << R; cout << "\n";
-        print_hand_with_indices(hands[current]);
+        imprimir_mano_con_indices(manos[actual]);
 
-        bool played = false;
-        if (can_play_any(hands[current], L, R)) {
+        bool jugo = false;
+        if (puede_jugar_alguna(manos[actual], L, R)) {
             // pedir jugada manual
             while (true) {
                 cout << "Elige indice de ficha y lado (L/R). Ej: 0 L  -> ";
-                int idxSel; char side; if (!(cin >> idxSel >> side)) { cin.clear(); cin.ignore(10000,'\n'); continue; }
-                HandNode* node = hand_get_node_at(hands[current], idxSel);
+                int idxSel; char lado; if (!(cin >> idxSel >> lado)) { cin.clear(); cin.ignore(10000,'\n'); continue; }
+                NodoMano* node = mano_obtener_nodo_en(manos[actual], idxSel);
                 if (!node) { cout << "Indice invalido.\n"; continue; }
-                if (try_place_on_side(&board, node->id, side)) {
+                if (intentar_colocar_en_lado(&mesa, node->id, lado)) {
                     // quitar de mano
                     int idSel = node->id;
-                    hand_remove_first(&hands[current], idSel);
-                    cout << "J" << (current+1) << " juega "; printTileCanonical(idSel); cout << ( (side=='L'||side=='l')?" a la izquierda\n":" a la derecha\n" );
-                    played = true;
+                    mano_eliminar_primero(&manos[actual], idSel);
+                    cout << "J" << (actual+1) << " juega "; imprimirFichaCanonica(idSel); cout << ( (lado=='L'||lado=='l')?" a la izquierda\n":" a la derecha\n" );
+                    jugo = true;
                     break;
                 } else {
                     cout << "No encaja en ese lado. Intenta otra combinacion.\n";
@@ -123,89 +137,90 @@ int round_play(int players, int &nextStarter, int roundScores[4], RNG &rng) {
             }
         } else {
             // no puede jugar
-            if (players <= 3) {
+            if (jugadores <= 3) {
                 // robar hasta encontrar jugable o pozo vacio
-                bool couldPlayAfterDraw = false;
-                while (!can_play_any(hands[current], L, R)) {
-                    int pulled = boneyard_pop_any(&boneyard);
+                bool pudoLuegoDeRobar = false;
+                while (!puede_jugar_alguna(manos[actual], L, R)) {
+                    int pulled = pozo_extraer_cualquiera(&pozo);
                     if (pulled == -1) break; // pozo vacio
-                    hand_insert_front(&hands[current], pulled);
-                    cout << "J" << (current+1) << " roba del pozo: "; printTileCanonical(pulled); cout << "\n";
+                    mano_insertar_inicio(&manos[actual], pulled);
+                    cout << "J" << (actual+1) << " roba del pozo: "; imprimirFichaCanonica(pulled); cout << "\n";
                 }
-                if (can_play_any(hands[current], L, R)) {
+                if (puede_jugar_alguna(manos[actual], L, R)) {
                     // forzar jugada: pedir manualmente cual y lado
-                    couldPlayAfterDraw = true;
+                    pudoLuegoDeRobar = true;
                     continue; // reintenta turno con mano actualizada (prompt de arriba)
                 }
-                if (!couldPlayAfterDraw) {
-                    cout << "J" << (current+1) << " pasa.\n";
+                if (!pudoLuegoDeRobar) {
+                    cout << "J" << (actual+1) << " pasa.\n";
                 }
             } else {
-                cout << "J" << (current+1) << " pasa.\n";
+                cout << "J" << (actual+1) << " pasa.\n";
             }
         }
 
         // imprimir mesa tras el turno
-        board_print(board);
+        mesa_imprimir(mesa);
 
-        if (played && hands[current] == nullptr) { winner = current; cout << "Jugador " << (current+1) << " se quedo sin fichas. Fin de ronda.\n"; break; }
+        if (jugo && manos[actual] == nullptr) { ganador = actual; cout << "Jugador " << (actual+1) << " se quedo sin fichas. Fin de ronda.\n"; break; }
 
-        if (!played) {
-            passesInRow++;
-            if (passesInRow >= players) { cout << "Tranca. Fin de ronda.\n"; break; }
+        if (!jugo) {
+            pasesSeguidos++;
+            if (pasesSeguidos >= jugadores) { cout << "Tranca. Fin de ronda.\n"; break; }
         } else {
-            passesInRow = 0;
+            pasesSeguidos = 0;
         }
 
-        current = (current + 1) % players;
+        actual = (actual + 1) % jugadores;
     }
 
     // Puntajes de la ronda
-    int minPoints = 1000000; int minPlayer = 0;
-    for (int p=0;p<players;++p) {
-        int pts = hand_points(hands[p]);
-        roundScores[p] = pts;
+    int minPuntos = 1000000; int minJugador = 0;
+    for (int p=0;p<jugadores;++p) {
+        int pts = mano_puntos(manos[p]);
+        puntajesRonda[p] = pts;
         cout << "Puntaje ronda J" << (p+1) << ": " << pts << "\n";
-        if (pts < minPoints) { minPoints = pts; minPlayer = p; }
+        if (pts < minPuntos) { minPuntos = pts; minJugador = p; }
     }
 
     // Siguiente starter
-    nextStarter = (winner != -1) ? winner : minPlayer;
+    siguienteInicial = (ganador != -1) ? ganador : minJugador;
 
     // liberar memoria
-    for (int p=0;p<4;++p) hand_free(&hands[p]);
-    boneyard_free(&boneyard);
-    board_free(&board);
-    return winner; // -1 si tranca
+    for (int p=0;p<4;++p) mano_liberar(&manos[p]);
+    pozo_liberar(&pozo);
+    mesa_liberar(&mesa);
+    return ganador; // -1 si tranca
 }
 
 int main() {
     cout << "Domino (hasta 3 rondas)\n";
-    int players;
+    int jugadores;
     cout << "Numero de jugadores (2-4): ";
-    cin >> players; if (players < 2) players = 2; if (players > 4) players = 4;
+    cin >> jugadores; 
+    if (jugadores < 2) jugadores = 2; 
+    if (jugadores > 4) jugadores = 4;
 
-    int totalScores[4] = {0,0,0,0};
+    int puntajesTotales[4] = {0,0,0,0};
     int roundsPlayed = 0;
-    int nextStarter = 0; // se actualiza al final de cada ronda por round_play
+    int siguienteInicial = 0; // se actualiza al final de cada ronda por jugar_ronda
 
-    // Semilla para el RNG: se pide al usuario para variar entre ejecuciones sin incluir librerías extra
-    unsigned long seed = 1u;
-    cout << "Ingresa una semilla (entero, ej. 12345): ";
-    if (!(cin >> seed)) { cin.clear(); cin.ignore(10000,'\n'); seed = 1u; }
-    RNG rng; rng_seed(rng, seed);
+    // Preguntamos un número de mezcla simple para variar entre ejecuciones (sin semillas ni librerías)
+    int mezcla = 0;
+    cout << "Ingresa un numero de mezcla (entero cualquiera): ";
+    if (!(cin >> mezcla)) { cin.clear(); cin.ignore(10000,'\n'); mezcla = 0; }
 
     while (roundsPlayed < 3) {
         cout << "\n--- Ronda " << (roundsPlayed+1) << " ---\n";
-    int roundScores[4] = {0,0,0,0};
-    int winner = round_play(players, nextStarter, roundScores, rng);
-        for (int p=0;p<players;++p) totalScores[p] += roundScores[p];
+    int puntajesRonda[4] = {0,0,0,0};
+    int ganador = jugar_ronda(jugadores, siguienteInicial, puntajesRonda, roundsPlayed, mezcla);
+    for (int p=0;p<jugadores;++p) puntajesTotales[p] += puntajesRonda[p];
 
-        cout << "Acumulado tras ronda " << (roundsPlayed+1) << ":\n";
-        for (int p=0;p<players;++p) cout << "J" << (p+1) << ": " << totalScores[p] << ((p==players-1)?"\n":" | ");
+    cout << "Acumulado tras ronda " << (roundsPlayed+1) << ":\n";
+    for (int p=0;p<jugadores;++p) cout << "J" << (p+1) << ": " << puntajesTotales[p] << ((p==jugadores-1)?"\n":" | ");
 
         roundsPlayed++;
-        if (roundsPlayed >= 3) break;
+    if (roundsPlayed >= 3) break;
 
         // prompt para siguiente ronda
         cout << "Escribe 's' para siguiente ronda o cualquier otra tecla para terminar: ";
@@ -213,7 +228,7 @@ int main() {
     }
 
     // ganador final (menor puntaje)
-    int bestP = 0; for (int p=1;p<players;++p) if (totalScores[p] < totalScores[bestP]) bestP = p;
-    cout << "\nGanador final: Jugador " << (bestP+1) << " con " << totalScores[bestP] << " puntos.\n";
+    int mejor = 0; for (int p=1;p<jugadores;++p) if (puntajesTotales[p] < puntajesTotales[mejor]) mejor = p;
+    cout << "\nGanador final: Jugador " << (mejor+1) << " con " << puntajesTotales[mejor] << " puntos.\n";
     return 0;
 }
