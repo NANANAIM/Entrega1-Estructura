@@ -2,10 +2,10 @@
 // impresión de mesa tras cada turno y acumulación de puntos.
 
 #include <iostream>
-#include "DominoCommon.h"
-#include "Hand.h"
-#include "Boneyard.h"
-#include "Board.h"
+#include "Domino.h"
+#include "Mano.h"
+#include "Pozo.h"
+#include "Mesa.h"
 using namespace std;
 
 void llenar_conjunto_completo(int ids[], int &cantidad) {
