@@ -8,7 +8,7 @@ struct NodoMesa {
 	NodoMesa* next; 
 };
 
-// Declaraciones mínimas de funciones usadas (definidas en DominoCommon.h)
+// Declaraciones mínimas de funciones usadas (definidas en Domino.h)//PENDIENTE:
 int codificarOrientada(int a, int b);
 
 void decodificarOrientada(int idFicha, int &a, int &b);
