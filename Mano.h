@@ -12,7 +12,7 @@ int puntosDeFicha(int idFicha);
 
 void imprimirFichaCanonica(int idFicha);
 
-// Implementaciones en el header (sin inline/static)
+// Implementaciones de funciones de mano
 void mano_iniciar(NodoMano** h){ 
     *h = nullptr; 
 }
