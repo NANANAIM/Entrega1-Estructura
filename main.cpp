@@ -20,7 +20,7 @@ void reordenar_ids(int ids[], int n, int numeroRonda, int jugadores, int mezcla)
     int k = (numeroRonda * 7 + jugadores * 3 + mezcla) % n; // desplazamiento por ronda, jugadores y mezcla del usuario
     for (int i = 0; i < n; ++i) temp[i] = ids[(i + k) % n];
     for (int i = 0; i < n; ++i) ids[i] = temp[i];
-    // pequeña mezcla adicional determinística
+    // pequeña mezcla adicional determinística (esto significa que no depende de azar; repites parámetros -> repites resultado)
     for (int i = 1; i + 1 < n; i += 3) {
         int j = n - 1 - i;
         if (j >= 0 && j < n) { int t = ids[i]; ids[i] = ids[j]; ids[j] = t; }

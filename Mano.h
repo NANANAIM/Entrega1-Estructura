@@ -8,6 +8,12 @@ struct NodoMano {
 };
 
 // Declaraciones mínimas de funciones usadas (definidas en DominoCommon.h)
+/*
+Motivo: en este proyecto las implementaciones están en .h . Si incluyéramos DominoCommon.h desde varios .h , aparecerían MÚLTIPLES DEFINICIONES al enlazar 
+Solución: declarar solo las firmas que necesitamos
+Con esto el compilador conoce los tipos y puede generar las llamadas, y las definiciones reales las aporta otro archivo (main.cpp) que sí incluye DominoCommon.h.  
+Esta explicacion tambien aplica en Mesa.h que hay declaraciones minimas
+*/
 int puntosDeFicha(int idFicha);
 
 void imprimirFichaCanonica(int idFicha);
